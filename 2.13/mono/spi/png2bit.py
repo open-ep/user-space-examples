@@ -3,15 +3,14 @@ import numpy as np
 import os
 import argparse
 
-# --- 設定參數解析器 ---
 parser = argparse.ArgumentParser(
     description="Convert a single PNG image into a minimal C const uint32_t array.",
     epilog="example: python image_converter.py test.png"
 )
 parser.add_argument("input_png", type=str, help="The name of the PNG file to convert.")
-parser.add_argument("-o", "--output", type=str, help="Optional name of the output C file")
-
+parser.add_argument("-o", "--output", type=str, help="Optional name of the output H file")
 args = parser.parse_args()
+
 target_png_file = args.input_png
 
 try:
@@ -28,8 +27,7 @@ if not os.path.exists(os.path.join(imgpath, target_png_file)):
 if args.output:
     output_c_file = args.output
 else:
-    base_name = os.path.splitext(target_png_file)[0]
-    output_c_file = f"{base_name}_img.c"
+    output_c_file = "png_HEX.h"
 
 path = os.path.join(p, output_c_file)
 
@@ -53,6 +51,10 @@ with open(path, 'w', encoding='utf-8') as f:
     print(f"Image size (HxW): {img_height}x{img_width}")
     print(f"Will generated array: const uint32_t {array_name}[]")
 
+    f.write("#ifndef PNG_HEX_H\n")
+    f.write("#define PNG_HEX_H\n\n")
+    f.write("#include <stdint.h>\n\n")
+
     f.write(f"// Image data for: {img_name}\n")
     f.write(f"// Dimensions: {img_width} x {img_height}\n")
     f.write(f"const uint32_t {array_name}[] = {{\n")
@@ -65,14 +67,13 @@ with open(path, 'w', encoding='utf-8') as f:
                 y = y_chunk * 32 + y1
                 if y >= img_width:
                     continue
-
                 r, g, b = im[x, y]
                 bit = 0 if (r, g, b) == (0, 0, 0) else 1
-
                 data |= (bit << (31 - y1))
-
             f.write(f"0x{data:08X}, ")
         f.write("\n")
-    f.write("};")
+
+    f.write("};\n\n")
+    f.write("#endif // PNG_HEX_H\n")
 
 print(f"\n--- Finish！Already generated file: {output_c_file} ---")
