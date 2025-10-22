@@ -137,56 +137,41 @@ void epd_init() {
 	printf("reset successed\n");
 
 	epd_writeCommand(0x18);
-    	epd_writeData(0x80);
+	epd_writeData(0x80);
 
-    	epd_writeCommand(0x0C);
-    	epd_writeData(0xAE);
-    	epd_writeData(0xC7);
+	epd_writeCommand(0x0C);
+	epd_writeData(0xAE);
+	epd_writeData(0xC7);
 	epd_writeData(0xC3);
-    	epd_writeData(0xC0);
-    	epd_writeData(0x80);
+	epd_writeData(0xC0);
+	epd_writeData(0x80);
 
-        epd_writeCommand(0x01);
-    	epd_writeData((480 - 1) & 0xFF);
-    	epd_writeData((480 - 1) >> 8);
-    	epd_writeData(0x02);
+	epd_writeCommand(0x01);
+	epd_writeData((480 - 1) & 0xFF);
+	epd_writeData((480 - 1) >> 8);
+	epd_writeData(0x02);
 
- 	epd_writeCommand(0x3C);
-    	epd_writeData(0x01);
+	epd_writeCommand(0x3C);
+	epd_writeData(0x01);
 
-    	epd_writeCommand(0x44);
-    	epd_writeData(0x00);
-    	epd_writeData(0x00);
-    	epd_writeData((800 - 1) & 0xFF);
-    	epd_writeData((800 - 1) >> 8);
+	epd_writeCommand(0x44);
+	epd_writeData(0x00);
+	epd_writeData(0x00);
+	epd_writeData((800 - 1) & 0xFF);
+	epd_writeData((800 - 1) >> 8);
 
-    	epd_writeCommand(0x45);
-    	epd_writeData(0x00);
-    	epd_writeData(0x00);
-    	epd_writeData((480 - 1) & 0xFF);
-    	epd_writeData((480 - 1) >> 8);
+	epd_writeCommand(0x45);
+	epd_writeData(0x00);
+	epd_writeData(0x00);
+	epd_writeData((480 - 1) & 0xFF);
+	epd_writeData((480 - 1) >> 8);
 
-    	epd_writeCommand(0x4E);
-    	epd_writeData(0x00);
-    	epd_writeData(0x00);
-    	epd_writeCommand(0x4F);
-    	epd_writeData(0x00);
-    	epd_writeData(0x00);
-
-    	epd_writeCommand(0x24);
-
-    	for (int i = 0; i < 48000; i++) {
-            epd_writeData(epd_image[i]);
-    	}
-
- 	epd_writeCommand(0x21);
-    	epd_writeData(0x40);
-    	epd_writeData(0x00);
-
-    	epd_writeCommand(0x22);
-    	epd_writeData(0xF7);
-    	epd_writeCommand(0x20);
-    	epd_waitUntilIdle();
+	epd_writeCommand(0x4E);
+	epd_writeData(0x00);
+	epd_writeData(0x00);
+	epd_writeCommand(0x4F);
+	epd_writeData(0x00);
+	epd_writeData(0x00);
 }
 
 void epd_write_img() {
