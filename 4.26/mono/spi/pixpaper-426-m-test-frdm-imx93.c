@@ -175,20 +175,20 @@ void epd_init() {
 }
 
 void epd_write_img() {
-    	epd_writeCommand(0x24);
+	epd_writeCommand(0x24);
 
-    	for (int i = 0; i < 48000; i++) {
-            epd_writeData(epd_image[i]);
-    	}
+	for (int i = 0; i < 48000; i++) {
+		epd_writeData(epd_image[i]);
+	}
 
- 	epd_writeCommand(0x21);
-    	epd_writeData(0x40);
-    	epd_writeData(0x00);
+	epd_writeCommand(0x21);
+	epd_writeData(0x40);
+	epd_writeData(0x00);
 
-    	epd_writeCommand(0x22);
-    	epd_writeData(0xF7);
-    	epd_writeCommand(0x20);
-    	epd_waitUntilIdle();
+	epd_writeCommand(0x22);
+	epd_writeData(0xF7);
+	epd_writeCommand(0x20);
+	epd_waitUntilIdle();
 }
 
 int main() {
