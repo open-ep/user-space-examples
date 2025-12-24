@@ -178,7 +178,7 @@ void epd_init() {
 	epd_writeData(0x00);
 }
 
-void epd_write_img() {
+void epd_display_mono_image() {
 	epd_writeCommand(0x24);
 
 	for (int i = 0; i < EPD_BUF_SIZE; i++) {
@@ -198,7 +198,7 @@ void epd_write_img() {
 int main() {
 	while (true) {
 		epd_init();
-		epd_write_img();
+		epd_display_mono_image();
 		sleep_ms(30 * 1000);
 	}
 
