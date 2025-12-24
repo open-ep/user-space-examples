@@ -43,6 +43,12 @@
 #define EPD_HEIGHT  480
 #define EPD_BUF_SIZE (EPD_WIDTH * EPD_HEIGHT / 8)
 
+static const uint8_t pass_mask[] = {
+	0x80,	// pass 0: MSB
+	0x40,	// pass 1
+	0x20,	// pass 2
+};
+
 int spi_fd;
 struct gpiod_chip *chip;
 struct gpiod_line *epd_dc_line, *epd_rst_line, *epd_busy_line;
@@ -195,6 +201,38 @@ void epd_display_mono_image() {
 	epd_waitUntilIdle();
 }
 
+void epd_kick_pass_0(void)
+{
+	epd_writeCommand(0x22);
+	epd_writeData(0xF4);
+	epd_writeCommand(0x20);
+	epd_waitUntilIdle();
+}
+
+void epd_kick_pass_1(void)
+{
+	epd_writeCommand(0x21);
+	epd_writeData(0x40);
+	epd_writeData(0x00);
+
+	epd_writeCommand(0x22);
+	epd_writeData(0xCF);
+	epd_writeCommand(0x20);
+	epd_waitUntilIdle();
+}
+
+void epd_kick_pass_2(void)
+{
+	epd_writeCommand(0x21);
+	epd_writeData(0x40);
+	epd_writeData(0x00);
+
+	epd_writeCommand(0x22);
+	epd_writeData(0xCF);
+	epd_writeCommand(0x20);
+	epd_waitUntilIdle();
+}
+
 void epd_reset_ram_counters(void)
 {
 	epd_writeCommand(0x4E);
@@ -213,14 +251,56 @@ void epd_full_clear(void)
 	for (int y = 0; y < EPD_HEIGHT; y++)
 		for (int x = 0; x < (EPD_WIDTH / 8); x++)
 			epd_writeData(0xFF);
-	epd_writeCommand(0x21);
-	epd_writeData(0x40);
-	epd_writeData(0x00);
+	epd_kick_pass_0();
+	epd_waitUntilIdle();
+}
 
+void epd_upload_lut(const uint8_t *lut)
+{
+	if(lut == NULL)
+		return;
+
+	epd_writeCommand(0x03);
+	epd_writeData(lut[105]);
+
+	epd_writeCommand(0x04);
+	epd_writeData(lut[106]);
+	epd_writeData(lut[107]);
+	epd_writeData(lut[108]);
+
+	epd_writeCommand(0x32);
+	for (int count = 0; count < (EPD_WIDTH / 8); count++) {
+		epd_writeData(lut[count]);
+	}
+
+	epd_waitUntilIdle();
 	epd_writeCommand(0x22);
-	epd_writeData(0xF7);
+	epd_writeData(0xC0);
 	epd_writeCommand(0x20);
 	epd_waitUntilIdle();
+}
+
+void epd_grayscale_pass(const uint8_t *lut)
+{
+	epd_upload_lut(lut);
+	epd_reset_ram_counters();
+
+	epd_writeCommand(0x24);
+	uint8_t mask = pass_mask[pass];
+
+	for (int y = 0; y < EPD_HEIGHT; y++) {
+		for (int x_byte = 0; x_byte < (EPD_WIDTH / 8); x_byte++) {
+			uint8_t out = 0;
+			for (int bit = 0; bit < 8; bit++) {
+				int x = x_byte * 8 + bit;
+				uint8_t gray = epd_image[y * EPD_WIDTH + x];
+				out <<= 1;
+				if (gray & mask)
+					out |= 1;
+			}
+			epd_writeData(out);
+		}
+	}
 }
 
 int main() {
