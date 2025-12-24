@@ -39,6 +39,10 @@
 
 #define SPI_SPEED 5000000
 
+#define EPD_WIDTH   800
+#define EPD_HEIGHT  480
+#define EPD_BUF_SIZE (EPD_WIDTH * EPD_HEIGHT / 8)
+
 int spi_fd;
 struct gpiod_chip *chip;
 struct gpiod_line *epd_dc_line, *epd_rst_line, *epd_busy_line;
@@ -147,8 +151,8 @@ void epd_init() {
 	epd_writeData(0x80);
 
 	epd_writeCommand(0x01);
-	epd_writeData((480 - 1) & 0xFF);
-	epd_writeData((480 - 1) >> 8);
+	epd_writeData((EPD_HEIGHT - 1) & 0xFF);
+	epd_writeData((EPD_HEIGHT - 1) >> 8);
 	epd_writeData(0x02);
 
 	epd_writeCommand(0x3C);
@@ -157,14 +161,14 @@ void epd_init() {
 	epd_writeCommand(0x44);
 	epd_writeData(0x00);
 	epd_writeData(0x00);
-	epd_writeData((800 - 1) & 0xFF);
-	epd_writeData((800 - 1) >> 8);
+	epd_writeData((EPD_WIDTH - 1) & 0xFF);
+	epd_writeData((EPD_WIDTH - 1) >> 8);
 
 	epd_writeCommand(0x45);
 	epd_writeData(0x00);
 	epd_writeData(0x00);
-	epd_writeData((480 - 1) & 0xFF);
-	epd_writeData((480 - 1) >> 8);
+	epd_writeData((EPD_HEIGHT - 1) & 0xFF);
+	epd_writeData((EPD_HEIGHT - 1) >> 8);
 
 	epd_writeCommand(0x4E);
 	epd_writeData(0x00);
@@ -177,7 +181,7 @@ void epd_init() {
 void epd_write_img() {
 	epd_writeCommand(0x24);
 
-	for (int i = 0; i < 48000; i++) {
+	for (int i = 0; i < EPD_BUF_SIZE; i++) {
 		epd_writeData(epd_image[i]);
 	}
 
