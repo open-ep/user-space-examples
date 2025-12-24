@@ -195,6 +195,34 @@ void epd_display_mono_image() {
 	epd_waitUntilIdle();
 }
 
+void epd_reset_ram_counters(void)
+{
+	epd_writeCommand(0x4E);
+	epd_writeData(0x00);
+	epd_writeData(0x00);
+
+	epd_writeCommand(0x4F);
+	epd_writeData(0x00);
+	epd_writeData(0x00);
+}
+
+void epd_full_clear(void)
+{
+	epd_reset_ram_counters();
+	epd_writeCommand(0x24);
+	for (int y = 0; y < EPD_HEIGHT; y++)
+		for (int x = 0; x < (EPD_WIDTH / 8); x++)
+			epd_writeData(0xFF);
+	epd_writeCommand(0x21);
+	epd_writeData(0x40);
+	epd_writeData(0x00);
+
+	epd_writeCommand(0x22);
+	epd_writeData(0xF7);
+	epd_writeCommand(0x20);
+	epd_waitUntilIdle();
+}
+
 int main() {
 	while (true) {
 		epd_init();
