@@ -189,6 +189,29 @@ void epd_HWreset() {
 	sleep_ms(50);
 }
 
+void epd_deinit() {
+	if (spi_fd >= 0) {
+		close(spi_fd);
+		spi_fd = -1;
+	}
+	if (epd_dc_line) {
+		gpiod_line_release(epd_dc_line);
+		epd_dc_line = NULL;
+	}
+	if (epd_rst_line) {
+		gpiod_line_release(epd_rst_line);
+		epd_rst_line = NULL;
+	}
+	if (epd_busy_line) {
+		gpiod_line_release(epd_busy_line);
+		epd_busy_line = NULL;
+	}
+	if (chip) {
+		gpiod_chip_close(chip);
+		chip = NULL;
+	}
+}
+
 void epd_init() {
 
 	spi_fd = open(EPD_SPI_DEVICE, O_RDWR);
@@ -228,6 +251,9 @@ void epd_init() {
 	sleep_ms(1000);
 	epd_waitUntilIdle();
 	printf("reset successed\n");
+
+	epd_writeCommand(0x12);
+	epd_waitUntilIdle();
 
 	epd_writeCommand(0x18);
 	epd_writeData(0x80);
@@ -551,14 +577,9 @@ int main(int argc, char **argv) {
 			epd_display_gray8_image();
 		else
 			epd_display_mono_image();
+		epd_deinit();
 		sleep_ms(30 * 1000);
 	}
-
-	close(spi_fd);
-	gpiod_line_release(epd_dc_line);
-	gpiod_line_release(epd_rst_line);
-	gpiod_line_release(epd_busy_line);
-	gpiod_chip_close(chip);
 
 	return 0;
 }
