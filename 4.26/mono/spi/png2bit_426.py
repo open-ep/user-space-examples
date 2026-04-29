@@ -7,7 +7,8 @@ parser = argparse.ArgumentParser(description="Convert PNG to .h header for EPD")
 parser.add_argument("input_png", type=str, help="Input PNG file")
 parser.add_argument("-o", "--output", type=str, help="Output .h file (optional)")
 parser.add_argument("-n", "--name", type=str, default="epd_image", help="Array name (default: epd_image)")
-parser.add_argument("--mode", choices=["mono", "gray"], default="mono", help="Output mode: mono (1bpp) or gray (8-level)")
+parser.add_argument("--mode", choices=["mono", "gray", "gray4"], default="mono",
+                    help="Output mode: mono (1bpp), gray (8-level), or gray4 (4-level grayscale for single-refresh)")
 args = parser.parse_args()
 
 input_file = args.input_png
@@ -55,6 +56,9 @@ if args.mode == "gray":
 
     # 轉成 byte array
     buffer = im_q.flatten().tolist()
+
+if args.mode == "gray4":
+    buffer = im.flatten().tolist()
 
 
 if args.mode == "mono":

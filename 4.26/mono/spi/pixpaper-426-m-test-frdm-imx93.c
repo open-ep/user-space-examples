@@ -42,6 +42,30 @@
 #define EPD_WIDTH   800
 #define EPD_HEIGHT  480
 #define EPD_BUF_SIZE (EPD_WIDTH * EPD_HEIGHT / 8)
+#define EPD_RAM_PITCH (EPD_WIDTH / 8)
+#define EPD_RAM_SIZE (EPD_RAM_PITCH * EPD_HEIGHT)
+#define EPD_LUT_WF_BYTES 105
+
+static const uint8_t lut_4gray_update[] = {
+	0x80, 0x48, 0x4A, 0x22, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x0A, 0x48, 0x68, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x88, 0x48, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0xA8, 0x48, 0x45, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x07, 0x1E, 0x1C, 0x02, 0x00,
+	0x05, 0x01, 0x05, 0x01, 0x02,
+	0x08, 0x01, 0x01, 0x04, 0x04,
+	0x00, 0x02, 0x00, 0x02, 0x01,
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x01,
+	0x22, 0x22, 0x22, 0x22, 0x22,
+	0x17, 0x41, 0xA8, 0x32, 0x30,
+	0x00, 0x00,
+};
 
 const unsigned char lut_color1_update[] = {
 	// 20 bytes
@@ -331,12 +355,151 @@ void epd_upload_lut(const uint8_t *lut)
 	for (int count = 0; count < (EPD_WIDTH / 8); count++) {
 		epd_writeData(lut[count]);
 	}
-
 	epd_waitUntilIdle();
 	epd_writeCommand(0x22);
 	epd_writeData(0xC0);
 	epd_writeCommand(0x20);
 	epd_waitUntilIdle();
+}
+
+void epd_upload_lut_gray4(const uint8_t *lut)
+{
+	if (lut == NULL)
+		return;
+
+	epd_writeCommand(0x03);
+	epd_writeData(lut[105]);
+
+	epd_writeCommand(0x04);
+	epd_writeData(lut[106]);
+	epd_writeData(lut[107]);
+	epd_writeData(lut[108]);
+
+	epd_writeCommand(0x2C);
+	epd_writeData(lut[109]);
+
+	epd_writeCommand(0x32);
+	for (int count = 0; count < EPD_LUT_WF_BYTES; count++) {
+		epd_writeData(lut[count]);
+	}
+
+	epd_waitUntilIdle();
+}
+
+static uint8_t epd_quantize_gray4(uint8_t gray)
+{
+	if (gray < 64)
+		return 0;
+	if (gray < 128)
+		return 1;
+	if (gray < 192)
+		return 2;
+	return 3;
+}
+
+void epd_write_ram(uint8_t cmd, const uint8_t *buf, size_t len)
+{
+	epd_reset_ram_counters();
+	epd_writeCommand(cmd);
+	for (size_t i = 0; i < len; i++)
+		epd_writeData(buf[i]);
+}
+
+void epd_clear_gray4_rams(void)
+{
+	uint8_t *ram24 = calloc(EPD_RAM_SIZE, sizeof(uint8_t));
+	uint8_t *ram26 = calloc(EPD_RAM_SIZE, sizeof(uint8_t));
+
+	if (!ram24 || !ram26) {
+		fprintf(stderr, "failed to allocate gray4 clear planes\n");
+		free(ram24);
+		free(ram26);
+		return;
+	}
+
+	memset(ram24, 0xFF, EPD_RAM_SIZE);
+	memset(ram26, 0x00, EPD_RAM_SIZE);
+
+	epd_write_ram(0x24, ram24, EPD_RAM_SIZE);
+	epd_write_ram(0x26, ram26, EPD_RAM_SIZE);
+
+	free(ram24);
+	free(ram26);
+}
+
+void epd_build_gray4_planes(uint8_t *ram24, uint8_t *ram26)
+{
+	for (int y = 0; y < EPD_HEIGHT; y++) {
+		for (int x_byte = 0; x_byte < EPD_RAM_PITCH; x_byte++) {
+			uint8_t byte24 = 0;
+			uint8_t byte26 = 0;
+
+			for (int bit = 0; bit < 8; bit++) {
+				int x = x_byte * 8 + bit;
+				uint8_t gray = epd_image[y * EPD_WIDTH + x];
+				uint8_t level = epd_quantize_gray4(gray);
+				uint8_t bit24;
+				uint8_t bit26;
+
+				switch (level) {
+                                case 0:
+                                        bit24 = 1;
+                                        bit26 = 1;
+                                        break;
+                                case 1:
+                                        bit24 = 0;
+                                        bit26 = 1;
+                                        break;
+                                case 2:
+                                        bit24 = 1;
+                                        bit26 = 0;
+                                        break;
+                                default:
+                                        bit24 = 0;
+                                        bit26 = 0;
+                                        break;
+
+				}
+
+				byte24 = (byte24 << 1) | bit24;
+				byte26 = (byte26 << 1) | bit26;
+			}
+
+			ram24[y * EPD_RAM_PITCH + x_byte] = byte24;
+			ram26[y * EPD_RAM_PITCH + x_byte] = byte26;
+		}
+	}
+}
+
+void epd_update_4gray(void)
+{
+	epd_writeCommand(0x22);
+	epd_writeData(0xC7);
+	epd_writeCommand(0x20);
+	epd_waitUntilIdle();
+}
+
+void epd_display_gray4_image(void)
+{
+	uint8_t *ram24 = calloc(EPD_RAM_SIZE, sizeof(uint8_t));
+	uint8_t *ram26 = calloc(EPD_RAM_SIZE, sizeof(uint8_t));
+
+	if (!ram24 || !ram26) {
+		fprintf(stderr, "failed to allocate gray4 planes\n");
+		free(ram24);
+		free(ram26);
+		return;
+	}
+
+	epd_clear_gray4_rams();
+	epd_build_gray4_planes(ram24, ram26);
+	epd_upload_lut_gray4(lut_4gray_update);
+	epd_write_ram(0x24, ram24, EPD_RAM_SIZE);
+	epd_write_ram(0x26, ram26, EPD_RAM_SIZE);
+	epd_update_4gray();
+
+	free(ram24);
+	free(ram26);
 }
 
 void epd_grayscale_pass(const uint8_t *lut)
@@ -382,7 +545,9 @@ void epd_display_grayscaled_image(void)
 int main(int argc, char **argv) {
 	while (true) {
 		epd_init();
-		if (argc > 1 && !strcmp(argv[1], "gray"))
+		if (argc > 1 && !strcmp(argv[1], "gray4"))
+			epd_display_gray4_image();
+		else if (argc > 1 && !strcmp(argv[1], "gray"))
 			epd_display_grayscaled_image();
 		else
 			epd_display_mono_image();
