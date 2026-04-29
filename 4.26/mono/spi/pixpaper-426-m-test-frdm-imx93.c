@@ -525,7 +525,7 @@ void epd_grayscale_pass(const uint8_t *lut)
 	}
 }
 
-void epd_display_grayscaled_image(void)
+void epd_display_gray8_image(void)
 {
 	epd_full_clear();
 
@@ -547,8 +547,8 @@ int main(int argc, char **argv) {
 		epd_init();
 		if (argc > 1 && !strcmp(argv[1], "gray4"))
 			epd_display_gray4_image();
-		else if (argc > 1 && !strcmp(argv[1], "gray"))
-			epd_display_grayscaled_image();
+		else if (argc > 1 && !strcmp(argv[1], "gray8"))
+			epd_display_gray8_image();
 		else
 			epd_display_mono_image();
 		sleep_ms(30 * 1000);
