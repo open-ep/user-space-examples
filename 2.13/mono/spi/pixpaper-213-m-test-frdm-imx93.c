@@ -38,9 +38,37 @@
 
 #define SPI_SPEED 5000000
 
+#define EPD_MODE_MONO 0
+#define EPD_MODE_FAST 1
+#define EPD_MODE_GRAY4 2
+
 int spi_fd;
 struct gpiod_chip *chip;
 struct gpiod_line *epd_dc_line, *epd_rst_line, *epd_busy_line;
+
+static const uint8_t lut_4G[153] = {
+	0x40, 0x48, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x08, 0x48, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x02, 0x48, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x20, 0x48, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x0A, 0x19, 0x00, 0x03, 0x08, 0x00, 0x00,
+	0x14, 0x01, 0x00, 0x14, 0x01, 0x00, 0x03,
+	0x0A, 0x03, 0x00, 0x08, 0x19, 0x00, 0x00,
+	0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x22, 0x22, 0x22, 0x22, 0x22, 0x22, 0x00, 0x00, 0x00,
+};
+
+static const uint8_t gray_bit24[4] = {1, 0, 1, 0};
+static const uint8_t gray_bit26[4] = {1, 1, 0, 0};
 
 void sleep_ms(unsigned int milliseconds) {
 	struct timespec ts;
@@ -95,17 +123,17 @@ void epd_HWreset() {
 	sleep_ms(50);
 }
 
-uint8_t img_fetch_hex_32(int y, int x, uint32_t *img_src) {
-	int hsize = 8;
-	if (y >= 122 || x >= 250) {
-		return 0b1;
-	} else {
-		uint32_t target = *(img_src + hsize * y + (x / 32));
-		return (target >> (31 - x % 32)) & 0b1;
-	}
+int epd_quantize_gray4(uint8_t g) {
+	if (g < 64)
+		return 0;
+	if (g < 128)
+		return 1;
+	if (g < 192)
+		return 2;
+	return 3;
 }
 
-void epd_init() {
+void epd_init(int mode) {
 
 	spi_fd = open(EPD_SPI_DEVICE, O_RDWR);
 	if (spi_fd < 0) {
@@ -113,8 +141,8 @@ void epd_init() {
 		exit(1);
 	}
 
-	uint8_t mode = SPI_MODE_0;
-	ioctl(spi_fd, SPI_IOC_WR_MODE, &mode);
+	uint8_t spi_mode = SPI_MODE_0;
+	ioctl(spi_fd, SPI_IOC_WR_MODE, &spi_mode);
 
 	uint32_t speed = SPI_SPEED;
 	ioctl(spi_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed);
@@ -150,6 +178,13 @@ void epd_init() {
 	epd_writeCommand(0x12);
 	epd_waitUntilIdle();
 
+	if (mode == EPD_MODE_GRAY4) {
+		epd_writeCommand(0x74);
+		epd_writeData(0x54);
+		epd_writeCommand(0x7E);
+		epd_writeData(0x3B);
+	}
+
 	epd_writeCommand(0x01);
 	epd_writeData(0xF9);
 	epd_writeData(0x00);
@@ -169,14 +204,51 @@ void epd_init() {
 	epd_writeData(0x00);
 
 	epd_writeCommand(0x3C);
-	epd_writeData(0x05);
+	epd_writeData(mode == EPD_MODE_GRAY4 ? 0x00 : 0x05);
+
+	if (mode == EPD_MODE_GRAY4) {
+		epd_writeCommand(0x2C);
+		epd_writeData(0x1C);
+		epd_writeCommand(0x3F);
+		epd_writeData(0x22);
+		epd_writeCommand(0x03);
+		epd_writeData(0x17);
+		epd_writeCommand(0x04);
+		epd_writeData(0x41);
+		epd_writeData(0x00);
+		epd_writeData(0x32);
+	}
 
 	epd_writeCommand(0x21);
 	epd_writeData(0x00);
 	epd_writeData(0x80);
 
-	epd_writeCommand(0x18);
-	epd_writeData(0x80);
+	if (mode != EPD_MODE_GRAY4) {
+		epd_writeCommand(0x18);
+		epd_writeData(0x80);
+	}
+
+	if (mode == EPD_MODE_FAST) {
+		epd_writeCommand(0x22);
+		epd_writeData(0xB1);
+		epd_writeCommand(0x20);
+		epd_waitUntilIdle();
+
+		epd_writeCommand(0x1A);
+		epd_writeData(0x64);
+		epd_writeData(0x00);
+
+		epd_writeCommand(0x22);
+		epd_writeData(0x91);
+		epd_writeCommand(0x20);
+		epd_waitUntilIdle();
+	}
+
+	if (mode == EPD_MODE_GRAY4) {
+		epd_writeCommand(0x32);
+		for (int i = 0; i < 153; i++)
+			epd_writeData(lut_4G[i]);
+	}
 
 	epd_writeCommand(0x4E);
 	epd_writeData(0x00);
@@ -188,20 +260,20 @@ void epd_init() {
 	epd_waitUntilIdle();
 }
 
-void epd_write_img(uint32_t *img_src) {
+void epd_write_img(const uint8_t *img_src, uint8_t update) {
 
 	epd_writeCommand(0x24);
 	sleep_ms(10);
 
 	for (uint x = 0; x < 250; x++) {
-		for (uint y_group = 0; y_group < 16; y_group++) { // 128/8 = 16
+		for (uint y_group = 0; y_group < 16; y_group++) {
 			uint8_t data = 0;
 			for (int bit = 0; bit < 8; bit++) {
 				uint y = y_group * 8 + bit;
-				if (y < 128) {
-					uint8_t pixel = img_fetch_hex_32(y, x, img_src);
-					data |= (pixel << (7 - bit));
-				}
+				uint8_t pixel = 1;
+				if (y < 122)
+					pixel = img_src[y * 250 + x] >= 128 ? 1 : 0;
+				data |= (pixel << (7 - bit));
 			}
 			epd_writeData(data);
 		}
@@ -211,17 +283,90 @@ void epd_write_img(uint32_t *img_src) {
 
 	epd_writeCommand(0x22);
 	sleep_ms(10);
-	epd_writeData(0xF7);
+	epd_writeData(update);
 	epd_writeCommand(0x20);
 	epd_waitUntilIdle();
 
 	printf("update image successed\n");
 }
 
-int main() {
-	epd_init();
+void epd_write_img_gray(const uint8_t *img_src) {
+
+	epd_writeCommand(0x4E);
+	epd_writeData(0x00);
+	epd_writeCommand(0x4F);
+	epd_writeData(0xF9);
+	epd_writeData(0x00);
+
+	epd_writeCommand(0x24);
+	sleep_ms(10);
+
+	for (uint x = 0; x < 250; x++) {
+		for (uint y_group = 0; y_group < 16; y_group++) {
+			uint8_t data = 0;
+			for (int bit = 0; bit < 8; bit++) {
+				uint y = y_group * 8 + bit;
+				int level = 3;
+				if (y < 122)
+					level = epd_quantize_gray4(img_src[y * 250 + x]);
+				data |= (gray_bit24[level] << (7 - bit));
+			}
+			epd_writeData(data);
+		}
+	}
+
+	epd_writeCommand(0x4E);
+	epd_writeData(0x00);
+	epd_writeCommand(0x4F);
+	epd_writeData(0xF9);
+	epd_writeData(0x00);
+
+	epd_writeCommand(0x26);
+	sleep_ms(10);
+
+	for (uint x = 0; x < 250; x++) {
+		for (uint y_group = 0; y_group < 16; y_group++) {
+			uint8_t data = 0;
+			for (int bit = 0; bit < 8; bit++) {
+				uint y = y_group * 8 + bit;
+				int level = 3;
+				if (y < 122)
+					level = epd_quantize_gray4(img_src[y * 250 + x]);
+				data |= (gray_bit26[level] << (7 - bit));
+			}
+			epd_writeData(data);
+		}
+	}
+
+	printf("write image successed, starting update image\n");
+
+	epd_writeCommand(0x22);
+	sleep_ms(10);
+	epd_writeData(0xC7);
+	epd_writeCommand(0x20);
+	epd_waitUntilIdle();
+
+	printf("update image successed\n");
+}
+
+int main(int argc, char **argv) {
+	int mode = EPD_MODE_MONO;
+
+	if (argc > 1) {
+		if (!strcmp(argv[1], "fast"))
+			mode = EPD_MODE_FAST;
+		else if (!strcmp(argv[1], "gray4") || !strcmp(argv[1], "gray"))
+			mode = EPD_MODE_GRAY4;
+	}
+
+	epd_init(mode);
 	while (true) {
-		epd_write_img(&img0[0]);
+		if (mode == EPD_MODE_GRAY4)
+			epd_write_img_gray(&img0[0]);
+		else if (mode == EPD_MODE_FAST)
+			epd_write_img(&img0[0], 0xC7);
+		else
+			epd_write_img(&img0[0], 0xF7);
 		sleep_ms(30 * 1000);
 	}
 
