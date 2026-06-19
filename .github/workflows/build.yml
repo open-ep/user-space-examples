@@ -1,0 +1,59 @@
+name: Build
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  discover:
+    name: Discover build targets
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate matrix
+        id: matrix
+        run: ./ci/gen-matrix.py >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: discover
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Build in Docker
+        run: |
+          docker run --rm \
+            --platform "${{ matrix.arch }}" \
+            -v "$PWD:/work" \
+            -w /work \
+            "${{ matrix.image }}" \
+            bash -euxo pipefail -c '
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                build-essential \
+                pkg-config \
+                linux-libc-dev \
+                libgpiod-dev \
+                python3 \
+                python3-pil
+              pkg-config --modversion libgpiod || true
+              dpkg -l | grep libgpiod || true
+              ./ci/build-one.sh "${{ matrix.src }}"
+              ./ci/check-python.sh
+            '
