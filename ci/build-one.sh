@@ -26,6 +26,7 @@ cc \
     -std=gnu11 \
     -Wall \
     -Wextra \
+    -Wno-error=incompatible-pointer-types \
     -Werror=implicit-function-declaration \
     -I"$DIR" \
     "$SRC" \
