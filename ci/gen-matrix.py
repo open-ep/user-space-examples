@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Generate the GitHub Actions build matrix from ci/build-targets.json."""
+"""Generate the GitHub Actions build matrix from discovered C targets."""
 
+import importlib.util
 import json
 from pathlib import Path
 
@@ -11,12 +12,23 @@ IMAGE_BY_GPIOD = {
 }
 
 
+def load_discover_module():
+    module_path = Path(__file__).with_name("discover-targets.py")
+    spec = importlib.util.spec_from_file_location("discover_targets", module_path)
+    if spec is None or spec.loader is None:
+        raise SystemExit(f"cannot load target discovery module: {module_path}")
+
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def main() -> None:
-    manifest_path = Path(__file__).with_name("build-targets.json")
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    discover_targets = load_discover_module().discover_targets
+    repo_root = Path(__file__).resolve().parents[1]
 
     matrix = []
-    for target in manifest["targets"]:
+    for target in discover_targets(repo_root):
         gpiod = target["gpiod"]
         try:
             image = IMAGE_BY_GPIOD[gpiod]

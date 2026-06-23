@@ -20,7 +20,7 @@ jobs:
 
       - name: Generate matrix
         id: matrix
-        run: ./ci/gen-matrix.py >> "$GITHUB_OUTPUT"
+        run: python3 ./ci/gen-matrix.py >> "$GITHUB_OUTPUT"
 
   build:
     name: Build ${{ matrix.name }}
